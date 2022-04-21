@@ -86,6 +86,36 @@ namespace Tests_Azure
             }
         }
 
+        public async Task UploadWithGetBlobsAsyncReadingAsync(BlobContainerClient container)
+        {
+            var sampleFile = new FileInfo(SampleFilePath);
+            Console.WriteLine($"Upload - local file {sampleFile.Name} size for upload: {sampleFile.Length}");
+
+            try
+            {
+                await using var localFileStream = File.OpenRead(SampleFilePath);
+                var blockBlobClient = BlockBlobClient(container);
+
+                await using var stream = await blockBlobClient.OpenWriteAsync(true);
+                await localFileStream.CopyToAsync(stream);
+
+                await GetBlobsAsync(container);
+
+                await localFileStream.FlushAsync();
+                await stream.FlushAsync();
+
+                Console.WriteLine("------------------");
+                Console.WriteLine("Reading after upload first thread");
+                Console.WriteLine("------------------");
+
+                await GetBlobsAsync(container);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Upload exception - {ex}");
+            }
+        }
+
         public async Task UploadAfterFullUploadAsync(BlobContainerClient container)
         {
             await UploadAsync(container);
@@ -93,6 +123,23 @@ namespace Tests_Azure
             Console.WriteLine("Press Enter to exit");
             Console.ReadLine();
         }
+
+        public async Task<AsyncPageable<BlobItem>> GetBlobsAsync(BlobContainerClient blobContainerClient)
+        {
+            var resultSegment = blobContainerClient.GetBlobsAsync(BlobTraits.None, BlobStates.Uncommitted);
+
+            await foreach (var blobItem in resultSegment)
+            {
+                Console.WriteLine("blobItem.Name " + blobItem.Name);
+                Console.WriteLine(
+                    "blobItem.Properties.ContentLength " + blobItem.Properties.ContentLength);
+                Console.WriteLine("blobItem.Properties.ETag " + blobItem.Properties.ETag);
+                Console.WriteLine("--------------");
+            }
+
+            return resultSegment;
+        }
+
 
         public async Task<IAsyncEnumerable<Page<BlobHierarchyItem>>> GetBlobsByHierarchyAsPagesAsync(
             BlobContainerClient blobContainerClient)
@@ -121,16 +168,42 @@ namespace Tests_Azure
             {
                 Console.WriteLine($"Waiting for fully uploaded.");
                 Task.Delay(1000).Wait();
-            } while (!await IsFullUploadedByContentLength(container));
+            } while (!await IsFullUploadedByHierarchyAndContentLength(container));
         }
 
-        public async Task<bool> IsFullUploadedByContentLength(BlobContainerClient blobContainerClient)
+        public async Task ContinueWhenFullUploadWithGetBlobsAsync(BlobContainerClient container)
+        {
+            do
+            {
+                Console.WriteLine($"Waiting for fully uploaded.");
+                Task.Delay(1000).Wait();
+            } while (!await IsFullUploadedGetBlobsAsyncAndContentLength(container));
+        }
+
+        public async Task<bool> IsFullUploadedByHierarchyAndContentLength(BlobContainerClient blobContainerClient)
         {
             var resultSegment = await GetBlobsByHierarchyAsPagesAsync(blobContainerClient);
 
             await foreach (Azure.Page<BlobHierarchyItem> blobPage in resultSegment)
             {
-                if (blobPage.Values.Any(blobHierarchyItem => blobHierarchyItem.Blob.Properties.ContentLength > 0))
+                if (blobPage.Values.Any(blobHierarchyItem => blobHierarchyItem.Blob.Properties.ContentLength > 0 &&
+                                                             blobHierarchyItem.Blob.Name == BlobName))
+                {
+                    Console.WriteLine($"Blob is fully uploaded.");
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public async Task<bool> IsFullUploadedGetBlobsAsyncAndContentLength(BlobContainerClient blobContainerClient)
+        {
+            var resultSegment = await GetBlobsAsync(blobContainerClient);
+
+            await foreach (var blobItem in resultSegment)
+            {
+                if (blobItem.Name == BlobName && blobItem.Properties.ContentLength > 0)
                 {
                     Console.WriteLine($"Blob is fully uploaded.");
                     return true;
@@ -144,6 +217,12 @@ namespace Tests_Azure
         {
             Task.Delay(delay).Wait();
             await GetBlobsByHierarchyAsPagesAsync(blobContainerClient);
+        }
+
+        public async Task GetBlobsWithDelayAsync(BlobContainerClient blobContainerClient, int delay)
+        {
+            Task.Delay(delay).Wait();
+            await GetBlobsAsync(blobContainerClient);
         }
 
         public BlockBlobClient BlockBlobClient(BlobContainerClient container)

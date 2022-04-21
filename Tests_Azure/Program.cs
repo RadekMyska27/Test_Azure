@@ -8,17 +8,26 @@ using Tests_Azure;
 var blobStorageExample = new BlobStorageExample();
 blobStorageExample.Init();
 
-// scenario 1 - one thread only upload
-OneThreadReadDuringAndAfterUploadScenario();
+// scenario 1 - one thread only upload with GetBlobsByHierarchyAsPagesAsync
+// OneThreadReadDuringAndAfterUploadScenario();
 
-// scenario 2 - two thread upload and reading after Delay
+// scenario 2 - two thread upload and reading after Delay with GetBlobsByHierarchyAsPagesAsync
 // TwoThreadUploadReadingWithDelayDuringUploadScenario();
 
-// scenario 3 - simulate exception - condition not met
+// scenario 3 - simulate exception - condition not met with GetBlobsByHierarchyAsPagesAsync
 // SimulateExceptionConditionNotMetScenario();
 
-// scenario 4 - waiting for full upload by checking content length of the uploaded blob
+// scenario 4 - waiting for full upload by checking content length of the uploaded blob with GetBlobsByHierarchyAsPagesAsync
 // WaitUntilBlobHasSetContentLength();
+
+// scenario 5 - for reading list use method GetBlobsAsync
+// OneThreadGetBlobsAsyncReadDuringAndAfterUploadScenario();
+
+// scenario 6 - two thread upload and reading after Delay
+// TwoThreadUploadReadingGetBlobsAsyncWithDelayDuringUploadScenario();
+
+// scenario 7 - wait for full upload with GetBlobsAsync
+// WaitUntilBlobHasSetContentLengthWithGetBlobsAsync();
 
 void OneThreadReadDuringAndAfterUploadScenario()
 {
@@ -47,7 +56,6 @@ void TwoThreadUploadReadingWithDelayDuringUploadScenario()
     ResolveScenario(tasks);
 }
 
-
 void SimulateExceptionConditionNotMetScenario()
 {
     var container = blobStorageExample.GetBlobContainerClient();
@@ -67,14 +75,57 @@ void WaitUntilBlobHasSetContentLength()
 {
     var container = blobStorageExample.GetBlobContainerClient();
     var tasks = new List<Task> { };
-    
+
     var upload1 = blobStorageExample.UploadAsync(container);
     tasks.Add(upload1);
-    
+
     var readFullyUploadTask = blobStorageExample.ContinueWhenFullUpload(container).ContinueWith(async _ =>
     {
         await blobStorageExample.UploadAfterFullUploadAsync(container);
     });
+    tasks.Add(readFullyUploadTask);
+
+    Task.WaitAll(tasks.ToArray());
+    Console.ReadLine();
+}
+
+void OneThreadGetBlobsAsyncReadDuringAndAfterUploadScenario()
+{
+    var container = blobStorageExample.GetBlobContainerClient();
+    var tasks = new List<Task> { };
+
+    var upload1 = blobStorageExample.UploadWithGetBlobsAsyncReadingAsync(container);
+    tasks.Add(upload1);
+
+    ResolveScenario(tasks);
+}
+
+void TwoThreadUploadReadingGetBlobsAsyncWithDelayDuringUploadScenario()
+{
+    var container = blobStorageExample.GetBlobContainerClient();
+    var tasks = new List<Task> { };
+    const int delay = 1000;
+
+    var upload1 = blobStorageExample.UploadAsync(container);
+    tasks.Add(upload1);
+
+    Console.WriteLine("Reading from second thread");
+    var upload2 = blobStorageExample.GetBlobsWithDelayAsync(container, delay);
+    tasks.Add(upload2);
+
+    ResolveScenario(tasks);
+}
+
+void WaitUntilBlobHasSetContentLengthWithGetBlobsAsync()
+{
+    var container = blobStorageExample.GetBlobContainerClient();
+    var tasks = new List<Task> { };
+
+    var upload1 = blobStorageExample.UploadAsync(container);
+    tasks.Add(upload1);
+
+    var readFullyUploadTask = blobStorageExample.ContinueWhenFullUploadWithGetBlobsAsync(container)
+        .ContinueWith(async _ => { await blobStorageExample.UploadAfterFullUploadAsync(container); });
     tasks.Add(readFullyUploadTask);
 
     Task.WaitAll(tasks.ToArray());
