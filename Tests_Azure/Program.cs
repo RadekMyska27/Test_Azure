@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using Tests_Azure;
 
 var blobStorageExample = new BlobStorageExample();
-blobStorageExample.Init();
+await blobStorageExample.Init();
 
 // scenario 1 - one thread only upload with GetBlobsByHierarchyAsPagesAsync
 // OneThreadReadDuringAndAfterUploadScenario();
@@ -28,6 +28,21 @@ blobStorageExample.Init();
 
 // scenario 7 - wait for full upload with GetBlobsAsync
 // WaitUntilBlobHasSetContentLengthWithGetBlobsAsync();
+
+// scenario 8 - wait for full upload with GetBlobsAsync NOT FIXED !!!
+// WaitUntilBlobHasSetContentLengthWithBlobExistsAsync();
+
+// scenario 9 flags
+// await TestMethod();
+
+// blobStorageExample.IsOverTime();
+
+// scenario 10 call blob write 10 000 times
+// await CallUploadTenThousandTimeAsync();
+
+// scenario 11 call blob write 10 000 times with 10 blobs in package
+CallUploadTenThousandTimeWithGuidAsync();
+// DeleteContainer();
 
 void OneThreadReadDuringAndAfterUploadScenario()
 {
@@ -54,6 +69,20 @@ void TwoThreadUploadReadingWithDelayDuringUploadScenario()
     tasks.Add(upload2);
 
     ResolveScenario(tasks);
+}
+
+async Task TestMethod()
+{
+    var container = blobStorageExample.GetBlobContainerClient();
+
+    // await blobStorageExample.UploadAsync(container);
+    //
+
+    await blobStorageExample.Upload(container);
+    await blobStorageExample.GetBlobsByHierarchyAsPagesAsync(container);
+
+    Console.WriteLine("Press Enter to exit");
+    Console.ReadLine();
 }
 
 void SimulateExceptionConditionNotMetScenario()
@@ -132,12 +161,62 @@ void WaitUntilBlobHasSetContentLengthWithGetBlobsAsync()
     Console.ReadLine();
 }
 
+void WaitUntilBlobHasSetContentLengthWithBlobExistsAsync()
+{
+    var container = blobStorageExample.GetBlobContainerClient();
+    var tasks = new List<Task> { };
+
+    var upload1 = blobStorageExample.UploadAsync(container);
+    tasks.Add(upload1);
+
+    var readFullyUploadTask = blobStorageExample.ContinueWhenFullUploadWithBlobExistsAsync(container)
+        .ContinueWith(async _ => { await blobStorageExample.UploadAfterFullUploadAsync(container); });
+    tasks.Add(readFullyUploadTask);
+
+    Task.WaitAll(tasks.ToArray());
+    Console.ReadLine();
+}
+
 void ResolveScenario(List<Task> tasks)
 {
     Task.WaitAll(tasks.ToArray());
 
     Console.WriteLine("Press Enter to exit");
     Console.ReadLine();
+}
+
+void FlagsTest()
+{
+    Console.WriteLine("flags " + blobStorageExample.GetTestsFlags(BlobStorageExample.TestFlags.All).Count);
+
+    Console.WriteLine("Press Enter to exit");
+    Console.ReadLine();
+}
+
+async Task CallUploadTenThousandTimeAsync()
+{
+    var container = blobStorageExample.GetBlobContainerClient();
+    await blobStorageExample.UploadTenThousandTimeAsync(container);
+}
+
+void CallUploadTenThousandTimeWithGuidAsync()
+{
+    var tasks = new List<Task> { };
+    var container = blobStorageExample.GetBlobContainerClient();
+    
+    for (int i = 0; i < 9; i++)
+    {
+        var task1 = blobStorageExample.UploadTenThousandTimeWithGuidAsync(container, Guid.NewGuid());
+        tasks.Add(task1);
+    }
+
+    ResolveScenario(tasks);
+}
+
+void DeleteContainer()
+{
+    var container = blobStorageExample.GetBlobContainerClient();
+    container.Delete();
 }
 
 // check if blob is fuly uploaded 

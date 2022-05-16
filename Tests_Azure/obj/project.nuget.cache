@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "8kup3C6yNUn2FELn3V8k39cAO8V4IVtsF/4KsyaZaHSrmWjxhM7/f0tzNlM0iYx7kwPPQ0ToNNh4gqUDMLe5Ng==",
+  "dgSpecHash": "4mpcpEmT4GaQwyIVoO/a9ztlKvDu1X8Vyp3uq74cYh4axcySXhYrxT9IM5qWN6JxhIvj+8W7ma85Bqg0Qny8Cw==",
   "success": true,
-  "projectFilePath": "E:\\PROJEKTY_.NET_C#\\Test_Azure\\Tests_Azure\\Tests_Azure\\Tests_Azure.csproj",
+  "projectFilePath": "E:\\PROJEKTY_.NET_C#\\GIT_HUB\\Test_Azure\\Tests_Azure\\Tests_Azure.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\rmysk\\.nuget\\packages\\azure.core\\1.22.0\\azure.core.1.22.0.nupkg.sha512",
     "C:\\Users\\rmysk\\.nuget\\packages\\azure.storage.blobs\\12.11.0\\azure.storage.blobs.12.11.0.nupkg.sha512",

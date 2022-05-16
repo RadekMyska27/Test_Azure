@@ -2,6 +2,8 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Azure;
 using Azure.Storage.Blobs;
@@ -13,7 +15,8 @@ namespace Tests_Azure
 {
     public class BlobStorageExample
     {
-        const string SampleFilePath = @"E:\Idealine\Quadient\test_PDF\10.1mb.pdf";
+        const string SampleFile10MbPath = @"E:\Idealine\Quadient\test_PDF\Test_txt.txt";
+        const string SampleFilePath2 = @"E:\Idealine\Quadient\test_PDF\10.1_2mb.pdf";
 
         const string ConnectionString =
             @"DefaultEndpointsProtocol=https;AccountName=testidealine;AccountKey=ZaHYr5EFw4QFT1LukCqkutKy33mWsEFqoecdU+SnZyvX7KZYeMx8xOmDi1uAfTGYySKXcyYofAq1VQlZsjZYLw==;EndpointSuffix=core.windows.net";
@@ -21,30 +24,30 @@ namespace Tests_Azure
         const string ContainerName = "test1";
         const string BlobName = "testing_1.bin";
 
-        public void Init()
+        public async Task Init()
         {
             // create container at Azure
             var container = new BlobContainerClient(ConnectionString, ContainerName);
-            container.DeleteBlobIfExists(BlobName);
+            await container.DeleteBlobIfExistsAsync(BlobName, DeleteSnapshotsOption.IncludeSnapshots);
         }
 
         public async Task UploadWithReadingAsync(BlobContainerClient container)
         {
-            var sampleFile = new FileInfo(SampleFilePath);
+            var sampleFile = new FileInfo(SampleFile10MbPath);
             Console.WriteLine($"Upload - local file {sampleFile.Name} size for upload: {sampleFile.Length}");
 
             try
             {
-                await using var localFileStream = File.OpenRead(SampleFilePath);
+                await using var localFileStream = File.OpenRead(SampleFile10MbPath);
                 var blockBlobClient = BlockBlobClient(container);
 
-                await using var stream = await blockBlobClient.OpenWriteAsync(true);
-                await localFileStream.CopyToAsync(stream);
-
+                await using var blob = await blockBlobClient.OpenWriteAsync(true);
+                await localFileStream.CopyToAsync(blob);
+                
                 await GetBlobsByHierarchyAsPagesAsync(container);
 
                 await localFileStream.FlushAsync();
-                await stream.FlushAsync();
+                await blob.FlushAsync();
 
                 Console.WriteLine("------------------");
                 Console.WriteLine("Reading after upload first thread");
@@ -60,25 +63,27 @@ namespace Tests_Azure
 
         public async Task UploadAsync(BlobContainerClient container)
         {
-            var sampleFile = new FileInfo(SampleFilePath);
+            var sampleFile = new FileInfo(SampleFile10MbPath);
             Console.WriteLine($"Upload - local file {sampleFile.Name} size for upload: {sampleFile.Length}");
+           
+            await BlobExistsAsync(container);
 
             try
             {
-                await using var localFileStream = File.OpenRead(SampleFilePath);
+                await using var localFileStream = File.OpenRead(SampleFile10MbPath);
                 var blockBlobClient = BlockBlobClient(container);
 
-                await using var stream = await blockBlobClient.OpenWriteAsync(true);
-                await localFileStream.CopyToAsync(stream);
+                await using var blob = await blockBlobClient.OpenWriteAsync(true);
+                await localFileStream.CopyToAsync(blob);
 
-                await localFileStream.FlushAsync();
-                await stream.FlushAsync();
+                // await localFileStream.FlushAsync();
+                // await blob.FlushAsync();
 
                 Console.WriteLine("------------------");
                 Console.WriteLine("Reading after upload");
                 Console.WriteLine("------------------");
 
-                await GetBlobsByHierarchyAsPagesAsync(container);
+                // await GetBlobsByHierarchyAsPagesAsync(container);
             }
             catch (Exception ex)
             {
@@ -86,23 +91,53 @@ namespace Tests_Azure
             }
         }
 
-        public async Task UploadWithGetBlobsAsyncReadingAsync(BlobContainerClient container)
+        public async Task Upload(BlobContainerClient container)
         {
-            var sampleFile = new FileInfo(SampleFilePath);
+            var sampleFile = new FileInfo(SampleFilePath2);
             Console.WriteLine($"Upload - local file {sampleFile.Name} size for upload: {sampleFile.Length}");
 
             try
             {
-                await using var localFileStream = File.OpenRead(SampleFilePath);
+                await using var localFileStream = File.OpenRead(SampleFilePath2);
+                var textReader = new StreamReader(localFileStream);
+
+                // await using var fileStram2 = File.OpenWrite(SampleFilePath2);
+                
                 var blockBlobClient = BlockBlobClient(container);
 
-                await using var stream = await blockBlobClient.OpenWriteAsync(true);
-                await localFileStream.CopyToAsync(stream);
+                await using var blob = await blockBlobClient.OpenWriteAsync(true);
+
+                var streamWriter = new StreamWriter(blob, Encoding.UTF8);
+
+                await streamWriter.WriteAsync(await textReader.ReadToEndAsync());
+
+                await streamWriter.FlushAsync();
+                streamWriter.Dispose();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        } 
+
+        public async Task UploadWithGetBlobsAsyncReadingAsync(BlobContainerClient container)
+        {
+            var sampleFile = new FileInfo(SampleFile10MbPath);
+            Console.WriteLine($"Upload - local file {sampleFile.Name} size for upload: {sampleFile.Length}");
+
+            try
+            {
+                await using var localFileStream = File.OpenRead(SampleFile10MbPath);
+                var blockBlobClient = BlockBlobClient(container);
+
+                await using var blob = await blockBlobClient.OpenWriteAsync(true);
+                await localFileStream.CopyToAsync(blob);
 
                 await GetBlobsAsync(container);
 
                 await localFileStream.FlushAsync();
-                await stream.FlushAsync();
+                await blob.FlushAsync();
 
                 Console.WriteLine("------------------");
                 Console.WriteLine("Reading after upload first thread");
@@ -114,6 +149,99 @@ namespace Tests_Azure
             {
                 Console.WriteLine($"Upload exception - {ex}");
             }
+        }
+        
+        public async Task UploadTenThousandTimeAsync(BlobContainerClient container)
+        {
+            var sampleFile = new FileInfo(SampleFile10MbPath);
+            Console.WriteLine($"Upload - local file {sampleFile.Name} size for upload: {sampleFile.Length}");
+
+            for (var i = 0; i < 9999; i++)
+            {
+                Console.WriteLine("cycle " + i);
+                
+                try
+                {
+                    await using var currentStream = File.OpenRead(SampleFile10MbPath);
+
+                    await using var blob = await CreateBlobAsync(container);
+                    await currentStream.CopyToAsync(blob);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Upload exception - {ex}");
+                }
+            }
+        }
+        
+        // await using var currentStream = await _blobStorage.GetBlobAsync(docLocation);
+       
+        // await using var newStream = await _converterBlobStorage.CreateBlobAsync(docLocation);
+        // await currentStream.CopyToAsync(newStream, cancellationToken);
+        
+        public async Task UploadTenThousandTimeWithGuidAsync(BlobContainerClient container, Guid guid)
+        {
+            var sampleFile = new FileInfo(SampleFile10MbPath);
+            Console.WriteLine($"Upload - local file {sampleFile.Name} size for upload: {sampleFile.Length}");
+            
+
+            for (var i = 0; i < 9999; i++)
+            {
+                Console.WriteLine("cycle " + i);
+
+                try
+                {
+                    await using var currentStream = File.OpenRead(SampleFile10MbPath);
+
+                    await using var blob = await CreateBlobWithGuidAsync(container, guid);
+                    await currentStream.CopyToAsync(blob);
+
+                    await GetBlobsByHierarchyAsPagesAsync(container);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Upload exception - {ex}");
+                }
+            }
+        }
+
+        public async Task<Stream> CreateBlobAsync(BlobContainerClient container)
+        {
+            try
+            {
+                var blob = GetCloudBlobAsync(container);
+                return await blob.OpenWriteAsync(true);
+            }
+            catch (Exception e)
+            {
+                throw;
+            }
+        }
+        
+        public async Task<Stream> CreateBlobWithGuidAsync(BlobContainerClient container, Guid guid)
+        {
+            try
+            {
+                var blob = GetCloudBlobsWithGuidAsync(container, guid);
+                return await blob.OpenWriteAsync(true);
+            }
+            catch (Exception e)
+            {
+                throw;
+            }
+        }
+        
+        BlockBlobClient GetCloudBlobAsync(BlobContainerClient container)
+        {
+            var blob = container.GetBlockBlobClient(BlobName);
+            return blob;
+        }
+        
+        BlockBlobClient GetCloudBlobsWithGuidAsync(BlobContainerClient container, Guid guid)
+        {
+            var blob = container.GetBlockBlobClient(guid.ToString());
+            
+            return blob;
         }
 
         public async Task UploadAfterFullUploadAsync(BlobContainerClient container)
@@ -144,7 +272,7 @@ namespace Tests_Azure
         public async Task<IAsyncEnumerable<Page<BlobHierarchyItem>>> GetBlobsByHierarchyAsPagesAsync(
             BlobContainerClient blobContainerClient)
         {
-            var resultSegment = blobContainerClient.GetBlobsByHierarchyAsync(BlobTraits.None, BlobStates.Uncommitted)
+            var resultSegment = blobContainerClient.GetBlobsByHierarchyAsync(BlobTraits.None, BlobStates.None)
                 .AsPages(default, 50);
 
             await foreach (Azure.Page<BlobHierarchyItem> blobPage in resultSegment)
@@ -178,6 +306,15 @@ namespace Tests_Azure
                 Console.WriteLine($"Waiting for fully uploaded.");
                 Task.Delay(1000).Wait();
             } while (!await IsFullUploadedGetBlobsAsyncAndContentLength(container));
+        }
+        
+        public async Task ContinueWhenFullUploadWithBlobExistsAsync(BlobContainerClient container)
+        {
+            do
+            {
+                Console.WriteLine($"Waiting for fully uploaded.");
+                Task.Delay(1000).Wait();
+            } while (!await BlobExistsAsync(container));
         }
 
         public async Task<bool> IsFullUploadedByHierarchyAndContentLength(BlobContainerClient blobContainerClient)
@@ -213,9 +350,26 @@ namespace Tests_Azure
             return false;
         }
 
+        public async Task<bool> IsBlobExistInContainer(BlobContainerClient blobContainerClient)
+        {
+            if (!await blobContainerClient.ExistsAsync())
+                return false;
+
+            await foreach (var blobItem in blobContainerClient.GetBlobsAsync().AsPages(default, 50))
+            {
+                if (blobItem.Values.Any(item => item.Name == BlobName))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         public async Task GetBlobsByHierarchyAsPagesWithDelayAsync(BlobContainerClient blobContainerClient, int delay)
         {
             Task.Delay(delay).Wait();
+            await BlobExistsAsync(blobContainerClient);
             await GetBlobsByHierarchyAsPagesAsync(blobContainerClient);
         }
 
@@ -238,6 +392,68 @@ namespace Tests_Azure
             return container;
         }
 
+        public BlobContainerClient GetBlobServiceClient()
+        {
+            return new BlobServiceClient(ConnectionString).GetBlobContainerClient(ContainerName);
+        }
+        
+        public async Task<bool> BlobExistsAsync(BlobContainerClient container)
+        {
+            try
+            {
+                var blobReference = container.GetBlobClient(BlobName);
+                var existsAsync = await blobReference.ExistsAsync();
+                
+                Console.WriteLine(existsAsync ? "Blob with name {0} exist" : "Blob with name {0} NOT exist", BlobName);
+
+                return existsAsync;
+            }
+            catch (Exception e)
+            {
+                throw new Exception();
+            }
+        }
+
+        [Flags]
+        public enum TestFlags
+        {
+            NormalUser = 1,
+            Custodian = 2,
+            Finance = 4,
+            SuperUser = Custodian | Finance,
+            All = Custodian | Finance | NormalUser
+        }
+
+        public class TestFlag
+        {
+            public TestFlags Flags { get; set; }
+        }
+
+        public List<TestFlag> BlobFlags = new List<TestFlag>
+        {
+            new TestFlag { Flags = TestFlags.All },
+            new TestFlag { Flags = TestFlags.NormalUser },
+            new TestFlag { Flags = TestFlags.Custodian },
+            new TestFlag { Flags = TestFlags.Finance },
+        };
+
+        public List<TestFlag> GetTestsFlags(TestFlags tags)
+        {
+            return this.BlobFlags.Where(item => item.Flags == tags).ToList();
+        }
+
+        public async Task IsOverTime()
+        {
+            var start = DateTime.UtcNow.AddMinutes(1);
+
+            while (start > DateTime.UtcNow)
+            {
+                Console.WriteLine("jeste ne");
+                Task.Delay(1000).Wait();
+            }
+            Console.WriteLine("Uz je to tu");
+            Console.ReadLine();
+        }
 
         // public async Task ReadAsync()
         // {

@@ -416,11 +416,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "E:\\PROJEKTY_.NET_C#\\Test_Azure\\Tests_Azure\\Tests_Azure\\Tests_Azure.csproj",
+      "projectUniqueName": "E:\\PROJEKTY_.NET_C#\\GIT_HUB\\Test_Azure\\Tests_Azure\\Tests_Azure.csproj",
       "projectName": "Tests_Azure",
-      "projectPath": "E:\\PROJEKTY_.NET_C#\\Test_Azure\\Tests_Azure\\Tests_Azure\\Tests_Azure.csproj",
+      "projectPath": "E:\\PROJEKTY_.NET_C#\\GIT_HUB\\Test_Azure\\Tests_Azure\\Tests_Azure.csproj",
       "packagesPath": "C:\\Users\\rmysk\\.nuget\\packages\\",
-      "outputPath": "E:\\PROJEKTY_.NET_C#\\Test_Azure\\Tests_Azure\\Tests_Azure\\obj\\",
+      "outputPath": "E:\\PROJEKTY_.NET_C#\\GIT_HUB\\Test_Azure\\Tests_Azure\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files\\dotnet\\sdk\\NuGetFallbackFolder"
